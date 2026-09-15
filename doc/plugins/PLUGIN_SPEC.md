@@ -925,6 +925,7 @@ Minimum event set:
 - `approval.created`
 - `approval.decided`
 - `decision.created`
+- `decision.decided`
 - `decision.expired`
 - `decision.dismissed`
 - `decision.cancelled`

@@ -1713,6 +1713,11 @@ export const PLUGIN_EVENT_TYPES = [
   // surface operators most need to be woken for. The queue, triage, training and
   // retention actions stay private: they are desk plumbing, not decisions.
   "decision.created",
+  // The four ways a decision ends: chosen, timed out, dismissed, cancelled. The
+  // successful transition belongs here with the other terminal states — it is the
+  // one a decision's origin agent is waiting on, and leaving it out meant a plugin
+  // heard about a decision being raised and never about it being answered.
+  "decision.decided",
   "decision.expired",
   "decision.dismissed",
   "decision.cancelled",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PLUGIN_EVENT_TYPES } from "@paperclipai/shared";
 import { eventTypeForActivityAction } from "../services/activity-log.js";
+import { passesFilter } from "../services/plugin-event-bus.js";
 
 /**
  * The activity-action → plugin-event mapping is a plugin-facing contract that
@@ -13,6 +14,7 @@ import { eventTypeForActivityAction } from "../services/activity-log.js";
 describe("decision lifecycle plugin events", () => {
   const decisionActions = [
     "decision.created",
+    "decision.decided",
     "decision.expired",
     "decision.dismissed",
     "decision.cancelled",
@@ -44,6 +46,38 @@ describe("decision lifecycle plugin events", () => {
     ]) {
       expect(eventTypeForActivityAction(action)).toBeNull();
     }
+  });
+
+  it("reaches an agent-scoped subscriber when a decision is cancelled", () => {
+    // The bus matches an `{ agentId }` filter against `payload.agentId` for anything
+    // that is not an agent entity. The cancellation producer used to log the action
+    // without that field, so a plugin subscribed to a specific agent's decisions
+    // silently never saw a cancellation. `agentId` is the origin agent, not the actor
+    // who cancelled: the subscriber asked about the decision, not about the actor.
+    const originAgentId = "agent-1";
+    // The payload `logActivity` builds: the activity's `agentId` is spread onto the
+    // payload root next to the redacted details, so the producer's
+    // `agentId: updated.originAgentId` is what the filter reads as `payload.agentId`.
+    const cancellation = {
+      eventId: "evt-1",
+      eventType: "decision.cancelled",
+      occurredAt: new Date(0).toISOString(),
+      companyId: "company-1",
+      actorType: "user",
+      actorId: "user-1",
+      entityType: "decision",
+      entityId: "decision-1",
+      payload: { agentId: originAgentId, originAgentId },
+    } as unknown as Parameters<typeof passesFilter>[0];
+
+    expect(passesFilter(cancellation, { agentId: originAgentId })).toBe(true);
+    expect(passesFilter(cancellation, { agentId: "someone-else" })).toBe(false);
+    expect(passesFilter(cancellation, {})).toBe(true);
+
+    // The shape this test guards against: the producer as it was before this PR —
+    // no origin agent on the activity, so `payload.agentId` is null.
+    const withoutAgent = { ...cancellation, payload: { agentId: null } } as typeof cancellation;
+    expect(passesFilter(withoutAgent, { agentId: originAgentId })).toBe(false);
   });
 
   it("does not treat a decision action as a prefix match", () => {
