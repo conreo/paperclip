@@ -32,12 +32,22 @@ describe("decision lifecycle plugin events", () => {
     }
   });
 
+  it("publishes a decision request raised through the queue as decision.created", () => {
+    // The desk raises its requests through the decision queue: a seed rule
+    // inserts a queue item when an issue needs an answer, and that insertion is
+    // what an operator sees appear. Those actions are not declared event types of
+    // their own, so without a bridge entry they were dropped and no subscriber
+    // ever saw a decision request arrive.
+    expect(eventTypeForActivityAction("decision_queue_item.seeded")).toBe("decision.created");
+    expect(eventTypeForActivityAction("decision_queue_item.added")).toBe("decision.created");
+  });
+
   it("keeps desk plumbing out of the plugin event surface", () => {
     // Queue, triage, training and retention actions are internal desk mechanics.
     // Exposing them would invite plugins to depend on queue internals, and each
-    // one would become a compatibility obligation.
+    // one would become a compatibility obligation. The two request actions above
+    // are the exception: they are what an operator is asked to answer.
     for (const action of [
-      "decision_queue_item.added",
       "decision_queue.created",
       "decision_queue_item.removed",
       "decision_triage.updated",

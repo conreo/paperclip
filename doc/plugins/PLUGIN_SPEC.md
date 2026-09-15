@@ -934,6 +934,11 @@ Minimum event set:
 - `cost_event.created`
 - `activity.logged`
 
+`decision.created` covers both ways a decision reaches a person: the decision
+entity lifecycle, and a decision queue item raised by a seed rule (an issue that
+needs an answer). The request events carry `issueId`, and `identifier` and
+`title` when the issue could be resolved, so a subscriber can name the work.
+
 Each event must include:
 
 - event id
