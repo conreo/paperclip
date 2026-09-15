@@ -2,7 +2,7 @@
 
 import { act } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ThemeProvider, useTheme, type ThemePreference } from "./ThemeContext";
 
 const THEME_STORAGE_KEY = "paperclip.theme";
@@ -249,6 +249,70 @@ describe("ThemeContext", () => {
     });
     expect(observedPreference).toBe("light");
     expect(window.localStorage.getItem(THEME_STORAGE_KEY)).toBe("light");
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("adopts the current OS value when switching to the system preference", () => {
+    // The OS flips to light while an explicit dark theme is selected, so no
+    // listener is attached and nothing in the provider has observed it yet.
+    window.localStorage.setItem(THEME_STORAGE_KEY, "dark");
+    const mql = installMatchMedia(true);
+
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <ThemeProvider>
+          <Probe />
+        </ThemeProvider>,
+      );
+    });
+    expect(observedTheme).toBe("dark");
+    expect(mql.listenerCount()).toBe(0);
+
+    act(() => {
+      mql.matches = false;
+    });
+
+    act(() => {
+      setTheme?.("system");
+    });
+    // Not one frame of the stale dark value: the switch reads the OS itself.
+    expect(observedTheme).toBe("light");
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
+    expect(mql.listenerCount()).toBe(1);
+
+    act(() => {
+      root.unmount();
+    });
+  });
+
+  it("follows the OS when local storage cannot be read", async () => {
+    const mql = installMatchMedia(false);
+    const getItem = vi
+      .spyOn(Storage.prototype, "getItem")
+      .mockImplementation(() => {
+        throw new Error("storage denied");
+      });
+
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <ThemeProvider>
+          <Probe />
+        </ThemeProvider>,
+      );
+    });
+
+    // index.html treats an unreadable preference the same way, so first paint
+    // and this provider agree instead of fighting over the initial class.
+    expect(observedPreference).toBe("system");
+    expect(observedTheme).toBe("light");
+    expect(mql.listenerCount()).toBe(1);
+
+    getItem.mockRestore();
 
     act(() => {
       root.unmount();

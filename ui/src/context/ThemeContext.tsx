@@ -85,15 +85,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const theme = themePreference === "system" ? systemTheme : themePreference;
 
   const setTheme = useCallback((nextPreference: ThemePreference) => {
+    // Read the OS now rather than trusting `systemTheme`, which stops tracking
+    // the OS while an explicit theme is selected. Both updates land in one
+    // render, so the first frame after the switch already shows the right theme.
+    if (nextPreference === "system") setSystemTheme(readSystemTheme());
     setThemePreference(nextPreference);
   }, []);
 
   const toggleTheme = useCallback(() => {
-    setThemePreference((current) => {
-      const index = TOGGLE_ORDER.indexOf(current);
-      return TOGGLE_ORDER[(index + 1) % TOGGLE_ORDER.length];
-    });
-  }, []);
+    const index = TOGGLE_ORDER.indexOf(themePreference);
+    const nextPreference = TOGGLE_ORDER[(index + 1) % TOGGLE_ORDER.length];
+    if (nextPreference === "system") setSystemTheme(readSystemTheme());
+    setThemePreference(nextPreference);
+  }, [themePreference]);
 
   useEffect(() => {
     applyTheme(theme);
