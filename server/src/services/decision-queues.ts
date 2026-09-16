@@ -378,40 +378,6 @@ function queueItemIssueDetails(
   };
 }
 
-/**
- * Resolve the issue a queue item points at when only its source is known. An
- * interaction belongs to exactly one issue, so the source row answers it; any
- * other source kind is left unresolved rather than guessed.
- */
-async function resolveSourceIssueIdentity(
-  db: Db,
-  companyId: string,
-  sourceKind: string,
-  sourceId: string,
-): Promise<{ issueId: string; identifier: string | null; title: string } | null> {
-  const issueId =
-    sourceKind === "issue"
-      ? sourceId
-      : await db
-          .select({ issueId: issueThreadInteractions.issueId })
-          .from(issueThreadInteractions)
-          .where(
-            and(
-              eq(issueThreadInteractions.companyId, companyId),
-              eq(issueThreadInteractions.id, sourceId),
-            ),
-          )
-          .then((rows) => rows[0]?.issueId ?? null);
-  if (!issueId) return null;
-  const issue = await db
-    .select({ identifier: issues.identifier, title: issues.title })
-    .from(issues)
-    .where(and(eq(issues.companyId, companyId), eq(issues.id, issueId)))
-    .then((rows) => rows[0] ?? null);
-  if (!issue) return null;
-  return { issueId, identifier: issue.identifier, title: issue.title };
-}
-
 export function decisionQueueService(db: Db) {
   async function getQueue(companyId: string, key: string) {
     return db.select().from(decisionQueues)
@@ -570,22 +536,18 @@ export function decisionQueueService(db: Db) {
             action: "queue_item.added",
             ...eventActorColumns(input.actor),
           });
-          const addedIdentity = await resolveSourceIssueIdentity(
-            txDb,
-            input.companyId,
-            input.sourceKind,
-            input.sourceId,
-          );
+          // No issue identity here. A manual add supplies a source reference, and
+          // the attention layer owns the mapping from a source kind to its issue
+          // (decisions carry `originIssueId`, approvals link through
+          // `issueApprovals`, a failed run hides it in `contextSnapshot`).
+          // Rebuilding that mapping in this service would duplicate it and drift,
+          // so an added item publishes the source and nothing it cannot prove.
           await recordActivity(txDb, input.actor, {
             companyId: input.companyId,
             action: "decision_queue_item.added",
             entityType: "decision_queue",
             entityId: queue.id,
-            details: {
-              sourceKind: input.sourceKind,
-              sourceId: input.sourceId,
-              ...queueItemIssueDetails(addedIdentity?.issueId ?? null, addedIdentity),
-            },
+            details: { sourceKind: input.sourceKind, sourceId: input.sourceId },
           });
         }
         return { item: toQueueItem(row), created: Boolean(inserted[0]) };

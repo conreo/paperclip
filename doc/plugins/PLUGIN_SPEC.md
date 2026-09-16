@@ -936,8 +936,9 @@ Minimum event set:
 
 `decision.created` covers both ways a decision reaches a person: the decision
 entity lifecycle, and a decision queue item raised by a seed rule (an issue that
-needs an answer). The request events carry `issueId`, and `identifier` and
-`title` when the issue could be resolved, so a subscriber can name the work.
+needs an answer). An item raised by a seed rule carries the issue it is about —
+`issueId`, with `identifier` and `title` when the issue could be read — so a
+subscriber can name the work. A manually added item carries only its source.
 
 Each event must include:
 
